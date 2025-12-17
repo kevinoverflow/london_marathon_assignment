@@ -2,7 +2,12 @@
 title: "Assignment"
 subtitle: "Introduction to R"
 author: "Kevin Hoang"
-format: html
+execute:
+  echo: false
+format: 
+  html:
+    code-links:
+      repo: "https://github.com/kevinoverflow/london_marathon_assignment"
 editor:
   markdown:
     wrap: sentence
@@ -31,14 +36,17 @@ n_countries <- n_distinct(winners$Nationality)
 categories <- paste(unique(winners$Category), collapse = ", ")
 ```
 
-This assignment analyses data from the London Marathon from `r min_year` to `r max_year`.
-Over `r n_years` years `r n_winners` winners won the marathon from `r n_countries` countries.
+# Introduction
 
-During this period, the marathon was won by `r n_winners` athletes in the categories `r categories` representing `r n_countries` different countries.
+The London Marathon is one of the world’s most iconic long-distance running events, attracting participants and spectators from across the globe. This assignment analyses data from the London Marathon [@LondonMarathon] from `r min_year` to `r max_year`. Over `r n_years` years, `r n_winners` athletes won the marathon across the categories `r categories`, representing `r n_countries` different countries.
+
+The analysis focuses on participation trends, dropout rates, winning times across different categories, and the relationship between the number of starters and the amount of money raised for charity.
+
+The analysis and visualizations were performed using several R packages: `here` [@here], `dplyr` [@dplyr], `ggplot2` [@ggplot2], `plotly` [@plotly], `scales` [@scales], and `ggrepel` [@ggrepel].
 
 ------------------------------------------------------------------------
 
-## Participation
+# Participation
 
 We analyze the relations between applicants, accepted, starters, and finishers.
 
@@ -68,11 +76,29 @@ p1 <- ggplot(marathon_data, aes(x = Year)) +
 ggplotly(p1)
 ```
 
-## Dropout rate
+The number of applicants has been rising rapidly over the years, indicating growing interest in the marathon.
+However, the number of starters has grown more slowly, suggesting that not all accepted applicants actually participate, due to acceptance requirements.
+
+```{r}
+# Calculate average slope
+applicants_lm <- lm(Applicants ~ Year, data = marathon_data)
+starters_lm <- lm(Starters ~ Year, data = marathon_data)
+
+slopes <- c(
+  applicants = summary(applicants_lm)$coefficients[2,1],
+  starters = summary(starters_lm)$coefficients[2,1]
+)
+```
+
+The average slope for applicants is `r round(slopes[1], 2)`, while for starters it's `r round(slopes[2], 2)`, confirming faster growth in applicants.
+
+------------------------------------------------------------------------
+
+# Dropout rate
+
 The dropout rate over the years:
 
 ```{r}
-# Compute dropout rate
 marathon_data <- marathon_data %>%
   mutate(Dropout_Rate = (Starters - Finishers) / Starters * 100)
 
@@ -85,7 +111,22 @@ p2 <- ggplot(marathon_data, aes(x = Year, y = Dropout_Rate)) +
 ggplotly(p2)
 ```
 
-## Winning Times
+Dropout rates vary across the years, peaking in 2020 due to the low number of starters that year.
+With only 77 participants, the 16 dropouts resulted in a high percentage.
+
+```{r}
+# Get 2020 dropout rate
+dropout_2020 <- marathon_data %>% filter(Year == 2020) %>% pull(Dropout_Rate)
+
+# Calculate average dropout rate without 2020
+dropout_avg <- marathon_data %>% filter(Year != 2020) %>% summarise(mean = mean(Dropout_Rate, na.rm = TRUE)) %>% pull(mean)
+```
+
+The dropout rate in 2020 was `r round(dropout_2020, 2)`%, compared to an average of `r round(dropout_avg, 2)`% in other years, showing a significant increase.
+
+------------------------------------------------------------------------
+
+# Winning Times
 
 Winning Times Over Time by Category
 
@@ -102,7 +143,43 @@ p3 <- ggplot(winners, aes(x = Year, y = Time_hours, color = Category)) +
 ggplotly(p3)
 ```
 
-### Participation vs Charity Raised
+Winning times for men and women have remained relatively consistent over the years, with gradual improvements.
+In contrast, wheelchair categories show significant improvements, with times getting faster, reflecting advancements in technology and training for athletes with disabilities.
+
+```{r}
+# Calculate average slope of winning times
+winners <- winners %>% mutate(Time_hours = Time * 24)
+men_lm <- lm(Time_hours ~ Year, data = winners %>% filter(Category == "Men"))
+women_lm <- lm(Time_hours ~ Year, data = winners %>% filter(Category == "Women"))
+wheelchair_men_lm <- lm(Time_hours ~ Year, data = winners %>% filter(Category == "Wheelchair Men"))
+wheelchair_women_lm <- lm(Time_hours ~ Year, data = winners %>% filter(Category == "Wheelchair Women"))
+
+slopes <- c(
+  Men = summary(men_lm)$coefficients[2,1],
+  Women = summary(women_lm)$coefficients[2,1],
+  "Wheelchair Men" = summary(wheelchair_men_lm)$coefficients[2,1],
+  "Wheelchair Women" = summary(wheelchair_women_lm)$coefficients[2,1]
+)
+slopes
+```
+
+### The yearly improvements in winning times are:  
+
+| Category           | Annual Improvement (sec/year) |
+|-------------------|-------------------------------|
+| Men               | `r round(abs(slopes["Men"]) * 3600, 0)` |
+| Women             | `r round(abs(slopes["Women"]) * 3600, 0)` |
+| Wheelchair Men    | `r round(abs(slopes["Wheelchair Men"]) * 3600, 0)` |
+| Wheelchair Women  | `r round(abs(slopes["Wheelchair Women"]) * 3600, 0)` |
+
+Overall, wheelchair categories show the most  improvements, reflecting progress in technology and training for athletes with disabilities, while men’s and women’s running times have remained relatively consistent with gradual gains. 
+
+Wheelchair categories show greater improvements compared to running categories.
+
+------------------------------------------------------------------------
+
+# Participation vs Charity Raised
+
 ```{r}
 p4 <- ggplot(marathon_data, aes(
   x = Starters,
@@ -123,6 +200,20 @@ p4 <- ggplot(marathon_data, aes(
   ) +
   theme_minimal()
 
-# Make interactive
 ggplotly(p4, tooltip = "text")
 ```
+
+
+```{r}
+cor_test <- cor.test(marathon_data$Starters, marathon_data$Raised, use = "complete.obs")
+cor_test$estimate
+cor_test$p.value   
+```
+
+There is a strong positive correlation (r = `r round(cor_test$estimate, 2)`, p < 0.001) between the number of participants and the amount of money raised for charity. Years with more starters tend to raise significantly more funds, showing that higher participation directly contributes to greater charitable impact. This highlights the marathon’s success in engaging the community, where larger crowds translate into more financial support for the causes involved.
+
+------------------------------------------------------------------------
+
+# References 
+::: {#refs}
+:::
