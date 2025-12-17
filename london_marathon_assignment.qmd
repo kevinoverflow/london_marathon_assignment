@@ -1,11 +1,128 @@
 ---
-title: "london_marathon_assignment"
+title: "Assignment"
+subtitle: "Introduction to R"
+author: "Kevin Hoang"
+format: html
+editor:
+  markdown:
+    wrap: sentence
+bibliography: references.bib
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+------------------------------------------------------------------------
 
 ```{r}
-1 + 1
+library(here)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(scales)
+library(ggrepel)
+
+marathon_data <- read.csv(here("london_marathon.csv"))
+winners <- read.csv(here("winners.csv"))
+
+min_year <- min(marathon_data$Year, na.rm = TRUE)
+max_year <- max(marathon_data$Year, na.rm = TRUE)
+
+n_years <- max_year - min_year + 1
+n_winners <- n_distinct(winners$Athlete)
+n_countries <- n_distinct(winners$Nationality)
+categories <- paste(unique(winners$Category), collapse = ", ")
+```
+
+This assignment analyses data from the London Marathon from `r min_year` to `r max_year`.
+Over `r n_years` years `r n_winners` winners won the marathon from `r n_countries` countries.
+
+During this period, the marathon was won by `r n_winners` athletes in the categories `r categories` representing `r n_countries` different countries.
+
+------------------------------------------------------------------------
+
+## Participation
+
+We analyze the relations between applicants, accepted, starters, and finishers.
+
+```{r}
+# Plot all in one graph
+p1 <- ggplot(marathon_data, aes(x = Year)) +
+  geom_line(aes(y = Applicants, color = "Applicants")) +
+  geom_point(aes(y = Applicants, color = "Applicants")) +
+  
+  geom_line(aes(y = Accepted, color = "Accepted")) +
+  geom_point(aes(y = Accepted, color = "Accepted")) +
+
+  
+  geom_line(aes(y = Starters, color = "Starters")) +
+  geom_point(aes(y = Starters, color = "Starters")) +
+  
+  geom_line(aes(y = Finishers, color = "Finishers")) +
+  geom_point(aes(y = Finishers, color = "Finishers")) +
+
+  scale_y_continuous(labels = comma) +
+  labs(title = "Participation Metrics Over Time",
+       x = "Year",
+       y = "Number of People",
+       color = "Metric") +
+  theme_minimal()
+
+ggplotly(p1)
+```
+
+## Dropout rate
+The dropout rate over the years:
+
+```{r}
+# Compute dropout rate
+marathon_data <- marathon_data %>%
+  mutate(Dropout_Rate = (Starters - Finishers) / Starters * 100)
+
+p2 <- ggplot(marathon_data, aes(x = Year, y = Dropout_Rate)) +
+  geom_line() +
+  geom_point() + 
+  labs(title = "Dropout Rate Over Time", x = "Year", y = "Dropout Rate (%)") +
+  theme_minimal()
+
+ggplotly(p2)
+```
+
+## Winning Times
+
+Winning Times Over Time by Category
+
+```{r}
+# Convert time to hours for better readability
+winners <- winners %>% mutate(Time_hours = Time * 24)
+
+p3 <- ggplot(winners, aes(x = Year, y = Time_hours, color = Category)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Winning Times Over Time", x = "Year", y = "Time (hours)") +
+  theme_minimal()
+
+ggplotly(p3)
+```
+
+### Participation vs Charity Raised
+```{r}
+p4 <- ggplot(marathon_data, aes(
+  x = Starters,
+  y = Raised,
+  size = Raised,
+  text = paste("Year:", Year,
+               "<br>Starters:", comma(Starters),
+               "<br>Raised: £", Raised, "million")
+)) +
+  geom_point() +
+  scale_size_continuous(name = "Charity Raised (£ millions)", labels = comma) +
+  scale_y_continuous(labels = comma) +
+  scale_x_continuous(labels = comma) +
+  labs(
+    title = "Participation vs Charity Raised",
+    x = "Number of Starters",
+    y = "Charity Raised (£ millions)"
+  ) +
+  theme_minimal()
+
+# Make interactive
+ggplotly(p4, tooltip = "text")
 ```
