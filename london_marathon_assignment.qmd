@@ -2,6 +2,7 @@
 title: "Assignment"
 subtitle: "Introduction to R"
 author: "Kevin Hoang"
+date: "2025-12-17"
 execute:
   echo: false
 format: 
@@ -16,7 +17,7 @@ bibliography: references.bib
 
 ------------------------------------------------------------------------
 
-```{r}
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
 library(here)
 library(dplyr)
 library(ggplot2)
@@ -26,6 +27,9 @@ library(ggrepel)
 
 marathon_data <- read.csv(here("london_marathon.csv"))
 winners <- read.csv(here("winners.csv"))
+
+# Merge the datasets
+marathon_full <- left_join(marathon_data, winners, by = "Year")
 
 min_year <- min(marathon_data$Year, na.rm = TRUE)
 max_year <- max(marathon_data$Year, na.rm = TRUE)
@@ -51,8 +55,11 @@ The analysis and visualizations were performed using several R packages: `here` 
 We analyze the relations between applicants, accepted, starters, and finishers.
 
 ```{r}
+# Use merged data, distinct by year for participation metrics
+participation_data <- marathon_full %>% distinct(Year, .keep_all = TRUE)
+
 # Plot all in one graph
-p1 <- ggplot(marathon_data, aes(x = Year)) +
+p1 <- ggplot(participation_data, aes(x = Year)) +
   geom_line(aes(y = Applicants, color = "Applicants")) +
   geom_point(aes(y = Applicants, color = "Applicants")) +
   
@@ -81,8 +88,8 @@ However, the number of starters has grown more slowly, suggesting that not all a
 
 ```{r}
 # Calculate average slope
-applicants_lm <- lm(Applicants ~ Year, data = marathon_data)
-starters_lm <- lm(Starters ~ Year, data = marathon_data)
+applicants_lm <- lm(Applicants ~ Year, data = participation_data)
+starters_lm <- lm(Starters ~ Year, data = participation_data)
 
 slopes <- c(
   applicants = summary(applicants_lm)$coefficients[2,1],
@@ -99,10 +106,10 @@ The average slope for applicants is `r round(slopes[1], 2)`, while for starters 
 The dropout rate over the years:
 
 ```{r}
-marathon_data <- marathon_data %>%
+participation_data <- participation_data %>%
   mutate(Dropout_Rate = (Starters - Finishers) / Starters * 100)
 
-p2 <- ggplot(marathon_data, aes(x = Year, y = Dropout_Rate)) +
+p2 <- ggplot(participation_data, aes(x = Year, y = Dropout_Rate)) +
   geom_line() +
   geom_point() + 
   labs(title = "Dropout Rate Over Time", x = "Year", y = "Dropout Rate (%)") +
@@ -116,10 +123,10 @@ With only 77 participants, the 16 dropouts resulted in a high percentage.
 
 ```{r}
 # Get 2020 dropout rate
-dropout_2020 <- marathon_data %>% filter(Year == 2020) %>% pull(Dropout_Rate)
+dropout_2020 <- participation_data %>% filter(Year == 2020) %>% pull(Dropout_Rate)
 
 # Calculate average dropout rate without 2020
-dropout_avg <- marathon_data %>% filter(Year != 2020) %>% summarise(mean = mean(Dropout_Rate, na.rm = TRUE)) %>% pull(mean)
+dropout_avg <- participation_data %>% filter(Year != 2020) %>% summarise(mean = mean(Dropout_Rate, na.rm = TRUE)) %>% pull(mean)
 ```
 
 The dropout rate in 2020 was `r round(dropout_2020, 2)`%, compared to an average of `r round(dropout_avg, 2)`% in other years, showing a significant increase.
@@ -132,9 +139,9 @@ Winning Times Over Time by Category
 
 ```{r}
 # Convert time to hours for better readability
-winners <- winners %>% mutate(Time_hours = Time * 24)
+marathon_full <- marathon_full %>% mutate(Time_hours = Time * 24)
 
-p3 <- ggplot(winners, aes(x = Year, y = Time_hours, color = Category)) +
+p3 <- ggplot(marathon_full, aes(x = Year, y = Time_hours, color = Category)) +
   geom_line() +
   geom_point() +
   labs(title = "Winning Times Over Time", x = "Year", y = "Time (hours)") +
@@ -148,11 +155,11 @@ In contrast, wheelchair categories show significant improvements, with times get
 
 ```{r}
 # Calculate average slope of winning times
-winners <- winners %>% mutate(Time_hours = Time * 24)
-men_lm <- lm(Time_hours ~ Year, data = winners %>% filter(Category == "Men"))
-women_lm <- lm(Time_hours ~ Year, data = winners %>% filter(Category == "Women"))
-wheelchair_men_lm <- lm(Time_hours ~ Year, data = winners %>% filter(Category == "Wheelchair Men"))
-wheelchair_women_lm <- lm(Time_hours ~ Year, data = winners %>% filter(Category == "Wheelchair Women"))
+marathon_full <- marathon_full %>% mutate(Time_hours = Time * 24)
+men_lm <- lm(Time_hours ~ Year, data = marathon_full %>% filter(Category == "Men"))
+women_lm <- lm(Time_hours ~ Year, data = marathon_full %>% filter(Category == "Women"))
+wheelchair_men_lm <- lm(Time_hours ~ Year, data = marathon_full %>% filter(Category == "Wheelchair Men"))
+wheelchair_women_lm <- lm(Time_hours ~ Year, data = marathon_full %>% filter(Category == "Wheelchair Women"))
 
 slopes <- c(
   Men = summary(men_lm)$coefficients[2,1],
@@ -181,7 +188,7 @@ Wheelchair categories show greater improvements compared to running categories.
 # Participation vs Charity Raised
 
 ```{r}
-p4 <- ggplot(marathon_data, aes(
+p4 <- ggplot(participation_data, aes(
   x = Starters,
   y = Raised,
   size = Raised,
@@ -205,7 +212,7 @@ ggplotly(p4, tooltip = "text")
 
 
 ```{r}
-cor_test <- cor.test(marathon_data$Starters, marathon_data$Raised, use = "complete.obs")
+cor_test <- cor.test(participation_data$Starters, participation_data$Raised, use = "complete.obs")
 cor_test$estimate
 cor_test$p.value   
 ```
